@@ -1,0 +1,476 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Course Registration Helper - Resize Cursor</title>
+    <style>
+        :root {
+            --bg-color: #F5F5F7;
+            --text-primary: #1D1D1F;
+            --text-secondary: #86868B;
+            --accent-color: #0071E3;
+            --guide-color: #FF9500;
+            --panel-bg: rgba(255, 255, 255, 0.8);
+            --panel-border: rgba(255, 255, 255, 0.5);
+            --shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+            --marker-bg: #FFFFFF;
+            --marker-text: #1D1D1F;
+            --marker-border: rgba(0, 0, 0, 0.1);
+        }
+
+        [data-theme="dark"] {
+            --bg-color: #000000;
+            --text-primary: #F5F5F7;
+            --text-secondary: #86868B;
+            --accent-color: #0A84FF;
+            --guide-color: #FFD60A;
+            --panel-bg: rgba(28, 28, 30, 0.8);
+            --panel-border: rgba(255, 255, 255, 0.1);
+            --shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+            --marker-bg: #1C1C1E;
+            --marker-text: #FFFFFF;
+            --marker-border: rgba(255, 255, 255, 0.2);
+        }
+
+        body {
+            margin: 0;
+            padding: 0;
+            background-color: var(--bg-color);
+            font-family: -apple-system, BlinkMacSystemFont, "San Francisco", "Segoe UI", Roboto, sans-serif;
+            overflow: hidden;
+            user-select: none;
+            height: 100vh;
+            width: 100vw;
+            cursor: crosshair;
+            transition: background-color 0.3s;
+        }
+
+        /* Controls Panel */
+        #controls {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            background: var(--panel-bg);
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
+            padding: 12px 20px;
+            border-radius: 20px;
+            display: flex;
+            gap: 16px;
+            align-items: center;
+            z-index: 1000;
+            border: 1px solid var(--panel-border);
+            box-shadow: var(--shadow);
+            color: var(--text-primary);
+        }
+
+        .control-group {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 0.9rem;
+            font-weight: 600;
+        }
+
+        input[type="range"] {
+            -webkit-appearance: none;
+            width: 100px;
+            height: 4px;
+            background: var(--text-secondary);
+            border-radius: 2px;
+            outline: none;
+        }
+        input[type="range"]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            width: 16px;
+            height: 16px;
+            background: var(--accent-color);
+            border-radius: 50%;
+            cursor: pointer;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+        }
+
+        button.btn-reset {
+            background: var(--text-primary);
+            color: var(--bg-color);
+            border: none;
+            padding: 6px 16px;
+            border-radius: 12px;
+            cursor: pointer;
+            font-weight: 600;
+            font-size: 0.85rem;
+            transition: opacity 0.2s;
+        }
+        button.btn-reset:hover { opacity: 0.8; }
+
+        /* Switch */
+        .switch {
+            position: relative;
+            display: inline-block;
+            width: 40px;
+            height: 24px;
+        }
+        .switch input { opacity: 0; width: 0; height: 0; }
+        .slider {
+            position: absolute;
+            cursor: pointer;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background-color: #ccc;
+            transition: .4s;
+            border-radius: 34px;
+        }
+        .slider:before {
+            position: absolute;
+            content: "";
+            height: 18px;
+            width: 18px;
+            left: 3px;
+            bottom: 3px;
+            background-color: white;
+            transition: .4s;
+            border-radius: 50%;
+        }
+        input:checked + .slider { background-color: var(--accent-color); }
+        input:checked + .slider:before { transform: translateX(16px); }
+
+        /* Alignment Line */
+        #alignmentLine {
+            position: absolute;
+            top: 0; bottom: 0;
+            width: 4px; /* 최소한의 너비 */
+            transform: translateX(-50%);
+            display: none;
+            z-index: 5;
+            pointer-events: none; /* 본체 클릭 무시 */
+        }
+        #alignmentLine::after {
+            content: '';
+            position: absolute;
+            left: 50%;
+            top: 0; bottom: 0;
+            width: 2px;
+            background: var(--guide-color);
+            box-shadow: 0 0 8px var(--guide-color);
+            transform: translateX(-50%);
+            opacity: 0.6;
+        }
+        
+        /* Line Handle */
+        #lineHandle {
+            position: absolute;
+            top: 0;
+            left: 50%;
+            transform: translateX(-50%);
+            /* [수정] 크기를 줄이고 슬림하게 변경 */
+            width: 22px; 
+            height: 28px;
+            background: var(--guide-color);
+            /* [수정] 아래쪽만 둥근 물방울/태그 모양 */
+            border-radius: 0 0 10px 10px; 
+            cursor: col-resize; 
+            pointer-events: auto; 
+            z-index: 20;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            box-shadow: 0 2px 6px rgba(0,0,0,0.15);
+            transition: filter 0.2s, height 0.2s;
+        }
+        
+        #lineHandle:hover {
+            filter: brightness(1.1);
+            height: 32px; /* 호버 시 살짝 길어지는 인터랙션 */
+        }
+
+        /* [수정] 핸들 아이콘: 가로줄 대신 세로줄(|||)로 변경하여 좌우 이동 암시 */
+        #lineHandle::before {
+            content: '';
+            width: 2px;
+            height: 10px;
+            background: rgba(255,255,255,0.9);
+            box-shadow: 4px 0 0 rgba(255,255,255,0.9), -4px 0 0 rgba(255,255,255,0.9);
+            border-radius: 1px;
+        }
+
+        .marker {
+            position: absolute;
+            background: var(--marker-bg);
+            color: var(--marker-text);
+            border: 1px solid var(--marker-border);
+            font-weight: 800;
+            font-size: 24px;
+            transform: translate(-50%, -50%);
+            cursor: move;
+            padding: 4px 12px;
+            border-radius: 12px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+            z-index: 10;
+            white-space: nowrap;
+            transition: transform 0.2s, box-shadow 0.2s;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            min-width: 40px;
+        }
+        .marker:hover {
+            transform: translate(-50%, -50%) scale(1.05);
+            box-shadow: 0 8px 20px rgba(0,0,0,0.2);
+        }
+        .marker.snapped {
+            border-color: var(--guide-color);
+        }
+
+        .marker input {
+            background: transparent;
+            border: none;
+            color: inherit;
+            font-size: inherit;
+            font-weight: inherit;
+            width: 80px;
+            text-align: center;
+            outline: none;
+            font-family: inherit;
+            padding: 0;
+            margin: 0;
+        }
+
+        #guide {
+            position: fixed;
+            bottom: 30px;
+            left: 50%;
+            transform: translateX(-50%);
+            color: var(--text-secondary);
+            font-weight: 500;
+            font-size: 0.9rem;
+            background: var(--panel-bg);
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
+            padding: 10px 24px;
+            border-radius: 50px;
+            box-shadow: var(--shadow);
+            border: 1px solid var(--panel-border);
+            pointer-events: none;
+            white-space: nowrap;
+        }
+    </style>
+</head>
+<body>
+
+    <div id="alignmentLine">
+        <div id="lineHandle" title="Move Line"></div>
+    </div>
+
+    <div id="controls">
+        <div class="control-group">
+            <span style="font-size:1.2rem;">Aa</span>
+            <input type="range" id="fontSize" min="16" max="64" value="24">
+        </div>
+        <div class="control-group">
+            <span>Dark Mode</span>
+            <label class="switch">
+                <input type="checkbox" id="darkModeToggle">
+                <span class="slider"></span>
+            </label>
+        </div>
+        <button onclick="resetMarkers()" class="btn-reset">Reset</button>
+    </div>
+
+    <div id="guide">
+        Left Click to Add • Right Click to Delete • Drag Handle to Move
+    </div>
+
+    <script>
+        let counter = 1;
+        let isDraggingMarker = false;
+        let isDraggingLine = false;
+        let hasMovedLine = false; 
+        let currentDrag = null;
+        let columnX = null; 
+        
+        const SNAP_THRESHOLD = 30; 
+        const CREATE_THRESHOLD = 100; 
+
+        const fontSizeSlider = document.getElementById('fontSize');
+        const alignmentLine = document.getElementById('alignmentLine');
+        const lineHandle = document.getElementById('lineHandle');
+        const darkModeToggle = document.getElementById('darkModeToggle');
+
+        darkModeToggle.addEventListener('change', (e) => {
+            if(e.target.checked) {
+                document.documentElement.setAttribute('data-theme', 'dark');
+            } else {
+                document.documentElement.removeAttribute('data-theme');
+            }
+        });
+
+        fontSizeSlider.addEventListener('input', (e) => {
+            const size = e.target.value + 'px';
+            document.querySelectorAll('.marker').forEach(el => {
+                el.style.fontSize = size;
+            });
+        });
+
+        lineHandle.addEventListener('mousedown', (e) => {
+            isDraggingLine = true;
+            hasMovedLine = false; 
+            // [수정] 드래그 중일 때도 좌우 화살표 커서 유지
+            document.body.style.cursor = 'col-resize';
+            e.stopPropagation(); 
+        });
+
+        document.addEventListener('click', (e) => {
+            if (e.target.closest('#controls') || e.target.closest('.marker')) return;
+            
+            if (hasMovedLine) {
+                hasMovedLine = false;
+                return;
+            }
+            if (e.target === lineHandle) return;
+
+            let targetX = e.clientX;
+            
+            if (columnX === null) {
+                columnX = targetX;
+                showAlignmentLine(columnX);
+                createMarker(targetX, e.clientY);
+                return;
+            }
+
+            const distance = Math.abs(e.clientX - columnX);
+
+            if (distance < CREATE_THRESHOLD) {
+                createMarker(columnX, e.clientY); 
+            } else {
+                // Far click just finishes editing (blur)
+            }
+        });
+
+        function showAlignmentLine(x) {
+            alignmentLine.style.left = x + 'px';
+            alignmentLine.style.display = 'block';
+            lineHandle.style.top = '0px';
+        }
+
+        function createMarker(x, y) {
+            const marker = document.createElement('div');
+            marker.className = 'marker snapped'; 
+            marker.style.left = x + 'px';
+            marker.style.top = y + 'px';
+            marker.style.fontSize = fontSizeSlider.value + 'px';
+            
+            document.body.appendChild(marker);
+            enableEditMode(marker, true); 
+
+            addDragFunctionality(marker);
+            
+            marker.addEventListener('dblclick', (e) => {
+                e.stopPropagation();
+                enableEditMode(marker, false);
+            });
+
+            marker.addEventListener('contextmenu', (e) => {
+                e.preventDefault();
+                marker.remove();
+                if (document.querySelectorAll('.marker').length === 0) {
+                    resetMarkers();
+                }
+            });
+        }
+
+        function enableEditMode(marker, isNew) {
+            const currentText = isNew ? counter : marker.innerText;
+            marker.innerText = ''; 
+
+            const input = document.createElement('input');
+            input.value = currentText;
+            
+            const finishEdit = () => {
+                if (input.value.trim() === '') {
+                    marker.remove();
+                    if (document.querySelectorAll('.marker').length === 0) resetMarkers();
+                } else {
+                    marker.innerText = input.value;
+                    if (isNew && !isNaN(input.value)) {
+                        counter = parseInt(input.value) + 1;
+                    } else if (isNew) {
+                        counter++;
+                    }
+                }
+            };
+
+            input.addEventListener('blur', finishEdit);
+            input.addEventListener('keydown', (e) => {
+                if (e.key === 'Enter') {
+                    input.blur(); 
+                }
+            });
+
+            marker.appendChild(input);
+            input.focus();
+            if (isNew) input.select(); 
+        }
+
+        function addDragFunctionality(el) {
+            el.addEventListener('mousedown', (e) => {
+                if(e.target.tagName === 'INPUT') return;
+                isDraggingMarker = true;
+                currentDrag = el;
+                el.style.cursor = 'grabbing';
+                e.stopPropagation(); 
+            });
+        }
+
+        document.addEventListener('mousemove', (e) => {
+            if (isDraggingLine) {
+                e.preventDefault();
+                hasMovedLine = true;
+                
+                columnX = e.clientX;
+                alignmentLine.style.left = columnX + 'px';
+                
+                // [수정] 핸들 Y축 이동 코드 삭제 -> 항상 상단 고정
+                // const handleHeightHalf = 15;
+                // let newTop = e.clientY - handleHeightHalf;
+                // lineHandle.style.top = newTop + 'px';
+                
+                document.querySelectorAll('.marker').forEach(marker => {
+                    marker.style.left = columnX + 'px';
+                    marker.classList.add('snapped');
+                });
+                return;
+            }
+
+            if (isDraggingMarker && currentDrag) {
+                e.preventDefault();
+                currentDrag.style.top = e.clientY + 'px';
+                if (columnX !== null && Math.abs(e.clientX - columnX) < SNAP_THRESHOLD) {
+                    currentDrag.style.left = columnX + 'px';
+                    currentDrag.classList.add('snapped');
+                } else {
+                    currentDrag.style.left = e.clientX + 'px';
+                    currentDrag.classList.remove('snapped');
+                }
+            }
+        });
+
+        document.addEventListener('mouseup', () => {
+            if (currentDrag) currentDrag.style.cursor = 'move';
+            
+            isDraggingMarker = false;
+            isDraggingLine = false;
+            currentDrag = null;
+            document.body.style.cursor = 'crosshair'; 
+        });
+
+        function resetMarkers() {
+            const markers = document.querySelectorAll('.marker');
+            markers.forEach(m => m.remove());
+            counter = 1;
+            columnX = null;
+            alignmentLine.style.display = 'none';
+            lineHandle.style.top = '0px'; 
+        }
+    </script>
+</body>
+</html>
